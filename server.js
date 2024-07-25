@@ -1,23 +1,26 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const path = require('path');
-const routes = require('./routes/authRoutes');
 const app = express();
-const dbConnection = require('./config/database');
-require('dotenv').config();
+const PORT = process.env.PORT || 3000;
+const bodyparser = require('body-parser');
+const cors = require('cors');
+const db = require('./config/database');
+const routes = require('./routes/authRoutes');
+const path = require('path');
+const corsOptions = require('./config/corsOptions'); // Import your CORS options
 
-dbConnection();
+// Enable CORS with your custom options
+app.use(cors(corsOptions));
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
+app.use(bodyparser.urlencoded({ extended: true }));
+app.use(bodyparser.json());
 app.use('/api/auth', routes);
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+
+db.query('SELECT 1')
+.then(() => {
+    console.log('Database connected...');
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
 })
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}/`)
-});
+.catch(err => console.log('Failed to connect to database.\n' + err));
