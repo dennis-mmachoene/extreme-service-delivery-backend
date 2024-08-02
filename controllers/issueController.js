@@ -1,27 +1,14 @@
-const Issue = require('../models/Issue');
-const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const  Issue  = require('../models/issue');
 
-const logIssue = async (req, res) => {
-    const { description } = req.body;
-    const file = req.file;
+exports.getIssueDetails = async (req, res) => {
+  const { issueID } = req.params;
 
-    if (!description) {
-        return res.status(400).json({ message: 'Provide issue description.' });
-    }
+  try {
+    const issue = await Issue.findByPk(issueID);
+    if (!issue) return res.status(404).json({ message: 'Issue not found' });
 
-    try {
-        const token = req.headers.authorization.split(' ')[1];
-        const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
-        const residentId = decodedToken.residentId;
-
-        const newIssue = new Issue(residentId, description, file);
-        await newIssue.save();
-        res.status(201).json({ message: 'Issue logged successfully.' });
-    } catch (error) {
-        console.error(error.message);
-        res.status(500).json({ error: 'Internal server error.' });
-    }
+    res.status(200).json(issue);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
-
-module.exports = { logIssue };

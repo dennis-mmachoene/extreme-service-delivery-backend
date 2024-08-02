@@ -1,9 +1,9 @@
-const db = require('../config/database');
+const db = require('../config/db');
 const path = require('path');
 
 class Issue {
-    constructor(residentId, description, mediaFile) {
-        this.residentId = residentId;
+    constructor(residentID, description, mediaFile) {
+        this.residentID = residentID;
         this.description = description;
         this.status = 'Pending';
         this.mediaFile = mediaFile;
@@ -18,13 +18,23 @@ class Issue {
         }
 
         const [result] = await db.query(
-            'INSERT INTO issue (residentId, description, status, mediaUrl, dateReported) VALUES (?, ?, ?, ?, ?)',
-            [this.residentId, this.description, this.status, mediaUrl, this.dateReported]
+            'INSERT INTO issue (residentID, description, status, mediaUrl, dateReported) VALUES (?, ?, ?, ?, ?)',
+            [this.residentID, this.description, this.status, mediaUrl, this.dateReported]
         );
         return result;
     }
     static async findAll() {
-        const [rows] = await db.query('SELECT * FROM issue');
+        const [rows] = await db.query(
+            'SELECT * FROM issue'
+        );
+        return rows;
+    }
+    static async findByPk(id) {
+        const [rows] = await db.query('SELECT * FROM issue WHERE issueID = ?', [id]);
+        return rows;
+    }
+    static async getResolvedIssues() {
+        const [rows] = await db.query('SELECT * FROM issue WHERE status =?', ['Resolved']);
         return rows;
     }
 }

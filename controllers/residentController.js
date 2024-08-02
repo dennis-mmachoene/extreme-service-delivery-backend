@@ -1,63 +1,96 @@
-const Resident = require('../models/Resident');
-const bcrypt = require('bcryptjs');
+const Resident = require('../models/resident');
+const Issue = require('../models/issue');
+const Feedback = require('../models/feedback');
 const jwt = require('jsonwebtoken');
-require('dotenv').config;
+const bcrypt = require('bcryptjs');
+const db = require('../config/db');
+require('dotenv').config();
 
-const register = async (req, res) => {
+const registerResident = async (req, res) => {
     const { name, surname, address, email, contact, password } = req.body;
 
-    if (!name || !surname || !address || !email || !contact || !password) {
-        return res.status(400).json({ message: 'All fields are required.' });
-    }
-
-    const residentExist = await Resident.findByEmail(email);
-    console.log(residentExist);
-    if (residentExist) {
-        return res.status(409).json({ message: 'The account already exists try logging in.' });
-    }
-
-    const hashedPwd = await bcrypt.hash(password, 12);
-
-    const resident = new Resident(name, surname, address, email, contact, hashedPwd);
-
     try {
+        const hashedPwd = await bcrypt.hash(password, 10);
+        let roleID;
+        const [rows] = await db.query('SELECT roleID FROM roles WHERE roleName = ?',
+            ['Resident']
+        );
+
+        roleID = rows[0].roleID;
+
+        const resident = new Resident(name, surname, address, email, contact, hashedPwd, roleID);
+
         await resident.save();
-        res.status(201).json({ message: 'Resident registered succesfully' });
-    } catch (err) {
-        console.log(err.message);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(201).json(resident);
+
+    } catch (error) {
+        res.status(500).json({ error: error.message })
     }
 }
 
-const login = async (req, res) => {
+const residentLogin = async (req, res) => {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ message: 'All fields are required.' })
-    }
 
     try {
         const resident = await Resident.findByEmail(email);
+   
+        if (!resident) return res.status(404).json({ message: 'Incorrect login credentials' });
 
-        if (!resident) {
-            return res.status(401).json({ message: 'Account does not exist.' });
-        }
+        const validPassword = await bcrypt.compare(password, resident.password);
 
-        const isPasswordValid = await bcrypt.compare(password, resident.password);
-        if (!isPasswordValid) {
-            res.status(401).json({ message: 'Incorrect password' });
-            return;
-        }
+        if (!validPassword) return res.status(401).json({ message: 'Incorrect Password' });
+
+        const [roleRows] = await db.query('SELECT roleName FROM roles WHERE roleID = ?', [resident.roleID]);
+        const roleName = roleRows.length > 0 ? roleRows[0].roleName : null;
+
+        if (!roleName) return res.status(500).json({ message: 'Role not found' });
+
         const token = jwt.sign(
-            { residentId: resident.userID },
+            { id: resident.userID, roleName: roleName },
             process.env.SECRET_KEY,
-            { expiresIn: '30m' }
+            { expiresIn: '1h' }
         );
-        res.status(200).json({ token });
-    } catch (err) {
-        console.log(err.message);
-        res.status(500).json({ error: 'Internal server error' });
+
+        res.header('Authorization', `Bearer ${token}`).json({ token });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+        console.log(error);
+    }
+};
+const reportIssue = async (req, res) => {
+    const { description } = req.body;
+
+    const residentID = req.user.id;
+    const mediaFile = null;
+
+    const issue = new Issue(residentID, description, mediaFile);
+
+    try {
+        await issue.save();
+        res.status(200).json(issue);
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+        console.log(error);
     }
 }
 
-module.exports = { register, login };
+const giveFeedback = async (req, res) => {
+    const { issueID, comments, rating } = req.body;
+    const residentID = req.user.id;
+
+    try {
+        const feedback = new Feedback(issueID, residentID, comments, rating);
+
+        await feedback.save();
+        res.status(200).json(feedback)
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
+module.exports = {
+    registerResident,
+    residentLogin,
+    reportIssue,
+    giveFeedback
+}
